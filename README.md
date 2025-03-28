@@ -1,6 +1,9 @@
 # Telegram Bot con LangChain
 
-[Fuente](https://medium.com/@obaff/building-a-telegram-bot-using-langchain-openai-and-the-telegram-api-1834167e524b)
+[Fuente base de la implementación](https://medium.com/@obaff/building-a-telegram-bot-using-langchain-openai-and-the-telegram-api-1834167e524b)
+
+## Consigna
+[Consigna de practico 01](CONSIGNA.md)
 
 ---
 
