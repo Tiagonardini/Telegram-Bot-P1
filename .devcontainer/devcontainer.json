@@ -22,13 +22,14 @@
         "discretegames.f5anything",
         "Github.copilot",
         "GitHub.copilot-chat",
-		"bierner.markdown-mermaid"
+		"bierner.markdown-mermaid",
+		"cweijan.vscode-postgresql-client2"
       ]}
 	},
 
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "pip3 install -r requirements.txt",
+	"postCreateCommand": "sudo apt-get update && sudo apt-get install -y postgresql-client && pip3 install -r requirements.txt",
 	// mount the docker socket to be able to run docker commands
 	"mounts": [
 		"source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"

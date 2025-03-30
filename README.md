@@ -5,6 +5,9 @@
 ## Consigna
 [Consigna de practico 01](CONSIGNA.md)
 
+## Como ejecutar de forma local
+[Consigna de practico 01](DEVLOCAL.md)
+
 ---
 
 ## Contenido

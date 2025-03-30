@@ -12,8 +12,8 @@ services:
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=postgres
     volumes:
-      - postgres_storage:/var/lib/postgresql/data
-      - ./init:/docker-entrypoint-initdb.d
+      - postgres_storage_01:/var/lib/postgresql/data
+      - ./sql-init:/docker-entrypoint-initdb.d
     healthcheck:
       test: [ "CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}" ]
       interval: 5s
@@ -21,5 +21,5 @@ services:
       retries: 10
 
 volumes:
-  postgres_storage:
+  postgres_storage_01:
 
