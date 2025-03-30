@@ -6,7 +6,7 @@
 [Consigna de practico 01](CONSIGNA.md)
 
 ## Como ejecutar de forma local
-[Consigna de practico 01](DEVLOCAL.md)
+[Ejecutar y Depurar Local con devContainer](DEVLOCAL.md)
 
 ---
 
