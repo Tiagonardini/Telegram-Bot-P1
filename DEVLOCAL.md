@@ -21,22 +21,48 @@ Sigue estos pasos para configurar y ejecutar el proyecto localmente utilizando e
    - Con el plugin de postgres pueden configurar la conexion a la base para probar que todo este funcionando
 
    ![connection](assert/postgres-connection-plugin.png)
+---
+## 4. Importar la Base de Datos (si la inicialización automática no funciona)
 
-   - Importar la Base de datos en caso que no funcione automaticamente
+### A. Montaje de Scripts de Inicialización
+
+- La siguiente configuración en `docker-compose.yaml` monta la carpeta `./sql-init` en el contenedor en la ruta `/docker-entrypoint-initdb.d`:
+
+  ```yaml
+  volumes:
+      - ./sql-init:/docker-entrypoint-initdb.d
+  ```
+
+### B. Copiar y Ejecutar Scripts Manualmente
+
+En caso de que los scripts no se copien automáticamente (por ejemplo, si la base ya estaba inicializada), puedes copiar y ejecutar los scripts manualmente sin necesidad de hardcodear el nombre del contenedor:
+
+1. **Obtener el ID del contenedor:**
 
    ```bash
-   docker cp ./sql-init/ telegram-bot-ia-talk-database-practica-01-postgres-1:/tmp/sql-scripts
+   CONTAINER_ID=$(docker-compose ps -q postgres)
    ```
+
+2. **Copiar la carpeta `sql-init` al contenedor en una ruta de trabajo (por ejemplo, `/tmp/sql-scripts`):**
+
    ```bash
-   docker exec telegram-bot-ia-talk-database-practica-01-postgres-1 psql -U postgres -d postgres -f /tmp/sql-scripts/01-sakila-schema.sql
+   docker cp ./sql-init/ $CONTAINER_ID:/tmp/sql-scripts/
    ```
+
+3. **Ejecutar los scripts SQL dentro del contenedor:**
+
    ```bash
-   docker exec telegram-bot-ia-talk-database-practica-01-postgres-1 psql -U postgres -d postgres -f /tmp/sql-scripts/02-sakila-data.sql
+   docker exec $CONTAINER_ID psql -U postgres -d postgres -f /tmp/sql-scripts/01-sakila-schema.sql
+   ```
+   
+   ```bash
+   docker exec $CONTAINER_ID psql -U postgres -d postgres -f /tmp/sql-scripts/02-sakila-data.sql
    ```
 
+---
 
 
-4. **Configurar el entorno virtual (venv) para depuración**  
+5. **Configurar el entorno virtual (venv) para depuración**  
    _Nota: Dado que el devcontainer se ejecuta en Linux, solo es necesario utilizar las instrucciones para Linux._  
    - Crea el entorno virtual en la raíz del proyecto:
      ```sh
@@ -51,7 +77,7 @@ Sigue estos pasos para configurar y ejecutar el proyecto localmente utilizando e
      pip install -r requirements.txt
      ```
 
-5. **Ejecutar y depurar**  
+6. **Ejecutar y depurar**  
    - Con el entorno configurado y la base de datos en funcionamiento, inicia la depuración presionando F5 o seleccionando la configuración "Python: Ejecutar main" desde la pestaña de depuración en VS Code.
 
 Con estos pasos, tendrás levantado el servicio de PostgreSQL, el entorno Python con las librerías instaladas y la posibilidad de depurar el archivo [main.py](http://_vscodecontentref_/0). ¡Éxitos en el desarrollo!
