@@ -22,6 +22,19 @@ Sigue estos pasos para configurar y ejecutar el proyecto localmente utilizando e
 
    ![connection](assert/postgres-connection-plugin.png)
 
+   - Importar la Base de datos en caso que no funcione automaticamente
+
+   ```bash
+   docker cp ./sql-init/ telegram-bot-ia-talk-database-practica-01-postgres-1:/tmp/sql-scripts
+   ```
+   ```bash
+   docker exec telegram-bot-ia-talk-database-practica-01-postgres-1 psql -U postgres -d postgres -f /tmp/sql-scripts/01-sakila-schema.sql
+   ```
+   ```bash
+   docker exec telegram-bot-ia-talk-database-practica-01-postgres-1 psql -U postgres -d postgres -f /tmp/sql-scripts/02-sakila-data.sql
+   ```
+
+
 
 4. **Configurar el entorno virtual (venv) para depuración**  
    _Nota: Dado que el devcontainer se ejecuta en Linux, solo es necesario utilizar las instrucciones para Linux._  
