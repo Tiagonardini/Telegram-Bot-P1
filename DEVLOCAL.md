@@ -13,6 +13,8 @@ Sigue estos pasos para configurar y ejecutar el proyecto localmente utilizando e
      cp .env.example .env
      ```
 
+   - En el archivo [env](.env) verifica las variables existentes, porque de estos valores tomara para los proximos pasos. Se pueden cambiar en cualquier momento, pero en el caso de la base, una vez creado el volumne los datos de configuracion de la base quedan persistidos, como usuario y clave.
+
 3. **Levantar el servicio de PostgreSQL**  
    - Ejecuta el siguiente comando en la terminal integrada para iniciar el contenedor de PostgreSQL definido en [docker-compose.yaml](docker-compose.yaml):
      ```sh
