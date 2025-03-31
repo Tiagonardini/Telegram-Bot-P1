@@ -4,6 +4,10 @@
 
 Completar el proyecto de integración del Telegram Bot con LangChain y PostgreSQL, implementando funcionalidades y automatización en CI/CD.
 
+## Trabajo en grupo
+
+[Grupos de trabajo](https://docs.google.com/spreadsheets/d/1IlEFrw_zb-spPEUUTyUpMWOIcKqxP53kT0HsE4j-Dd8/edit?gid=0#gid=0)
+
 ## Instrucciones
 
 1. **Fork y Entrega**  
