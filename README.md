@@ -71,6 +71,9 @@ La estructura del proyecto es la siguiente:
 
 ### Diagrama C4
 
+
+#### Nivel 2 Contenedores
+
 ```mermaid
 graph LR
   linkStyle default fill:#ffffff
@@ -93,6 +96,35 @@ graph LR
     1-. "<div>Uses</div>" .->3
     3-. "<div>Reads from and writes to</div>" .->4
   end
+```
+
+### Nivel 3 Componetes
+```mermaid
+graph LR
+    T["TelegramBot\n(bot/telegram_bot.py)"]
+    L["LLMAgent\n(llm/agent.py)"]
+    P["PostgreSQLDatabase\n(database/postgres_db.py)"]
+
+    T -->|Delegar consulta| L
+    L -->|Ejecuta queries vía toolkit| P
+```
+
+### Nivel 3.1 Agente Componetes
+```mermaid
+graph TD
+    A["LLMAgent (llm/agent.py)"]
+    B["Modelo de Lenguaje<br>(ChatGoogleGenerativeAI)"]
+    C["Tool: SQLDatabaseToolkit"]
+    D["Prompt Template"]
+    E["Agente Reactivo<br>(create_react_agent)"]
+    F[Consulta a Base de Datos]
+
+    A --> B
+    A --> C
+    B --> D
+    C --> D
+    D --> E
+    E -- Ejecuta consultas --> F
 ```
 
 ---

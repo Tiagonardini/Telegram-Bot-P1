@@ -47,7 +47,7 @@ docker-build:
   stage: build
   script:
    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-   - echo $CI_JOB_STAGE
+   - echo $IMAGE
   only:
     - main
     - practica-01
