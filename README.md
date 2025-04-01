@@ -69,6 +69,12 @@ La estructura del proyecto es la siguiente:
 
 ```
 
+### Arquitectura de Agentes
+
+[llm-agents](https://www.promptingguide.ai/research/llm-agents)
+
+
+
 ### Diagrama C4
 
 
@@ -262,6 +268,25 @@ Utiliza SonarCloud para el análisis de la calidad del código. Ejemplo de coman
 ```
 
 La salida se captura como artifact (`sonar.log`) para su revisión.
+
+#### Problema con la rama principal al integrar SonarCloud con GitLab CI
+
+Cuando configuramos un análisis con *SonarCloud* desde *GitLab CI*, nos encontramos con una advertencia relacionada con el nombre de la rama principal del repositorio. GitLab crea la rama por defecto con el nombre main, mientras que **SonarCloud espera una rama master como principal**, lo cual puede generar advertencias como:
+
+> "La rama analizada no es la rama principal del proyecto."
+
+Esto puede afectar cómo se muestran los resultados del análisis, por ejemplo:
+
+- No tener comparaciones correctas con la línea base.
+- Que no se apliquen correctamente los quality gates.
+
+---
+
+#### Solución
+
+La solución más común es *configurar explícitamente la rama principal en SonarCloud* para que coincida con la que usa GitLab (main en la mayoría de los casos), evitando así inconsistencias en los reportes de calidad.
+
+![Sonar](assert/sonar-rama.jpg)
 
 ### Seguridad y SBOM
 
