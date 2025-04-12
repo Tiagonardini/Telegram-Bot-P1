@@ -5,6 +5,8 @@
 ## Consigna
 [Consigna de practico 01](CONSIGNA.md)
 
+[Consigna de practico 02.1](CONSIGNA21.md)
+
 ## Como ejecutar de forma local
 [Ejecutar y Depurar Local con devContainer](DEVLOCAL.md)
 
@@ -221,6 +223,7 @@ graph TD;
     A2 --> A3[Build]
     A3 --> A4[Scanning]
     A4 --> A5[Summary]
+    A5 --> A6[Deploy]
   end
 
   subgraph Jobs
@@ -230,6 +233,8 @@ graph TD;
     B1[build: Docker Build] -->|Docker Image| SC1[scanning: Trivy Scan];
     
     SC1 -->|scanning-report.json, gl-dependency-scanning-report.json| S1;
+
+    S1 --> D1[deploy: Deploy to EKS]
   end
 
   %% Relaciones entre stages y jobs
@@ -238,12 +243,13 @@ graph TD;
   A3 -.-> B1;
   A4 -.-> SC1;
   A5 -.-> S1;
+  A6 -.-> D1;
 
   %% Estilos para diferenciar los grupos
   classDef stages fill:#f4f4f4,stroke:#333,stroke-width:2px;
   classDef jobs fill:#ddf1ff,stroke:#009,stroke-width:1px;
-  class A1,A2,A3,A4,A5 stages;
-  class T1,Q1,B1,SC1,S1 jobs;
+  class A1,A2,A3,A4,A5,A6 stages;
+  class T1,Q1,B1,SC1,S1,D1 jobs;
 ```
 
 El pipeline en GitLab CI (definido en [.gitlab-ci.yml](.gitlab-ci.yml)) está compuesto por varias etapas:
@@ -316,6 +322,126 @@ El pipeline finaliza mostrando un resumen en GitLab Pages, donde se agrupan los 
 Consulta el [Gitlab Pages](https://telegram-bot-ia-talk-database-f72817.gitlab.io/) para ver el resumen en formato HTML.
 
 ---
+
+# K8S Actividad Practica 2
+
+# K8S
+
+```mermaid
+graph TD
+  subgraph PostgreSQL StatefulSet
+    sts[StatefulSet: helm-postgres-postgresql]
+    podPG[pod: helm-postgres-postgresql-0]
+    svcPG[Service: helm-postgres-postgresql]
+    svcPGHL[Headless Service: helm-postgres-postgresql-hl]
+    svcMetrics[Metrics Service: helm-postgres-postgresql-metrics]
+    cmConfig[ConfigMap: postgres-config]
+    cmSchema[ConfigMap: postgres-init-schema]
+    secretPG[Secret: helm-postgres-postgresql]
+
+    sts --> podPG
+    podPG --> svcPG
+    podPG --> svcPGHL
+    podPG --> svcMetrics
+    podPG --> cmConfig
+    podPG --> cmSchema
+    podPG --> secretPG
+  end
+
+  subgraph Telegram Bot Deployment
+    deploy[Deployment: telegram-bot]
+    rs[ReplicaSet: telegram-bot-585f87d876]
+    podBot[pod: telegram-bot-585f87d876-ztngc]
+    secretBot[Secret: bot-secret]
+
+    deploy --> rs
+    rs --> podBot
+    podBot --> secretBot
+  end
+
+  podBot -->|Connects to| svcPG
+```
+# Crear Recursos de K8s y Pipeline CI/CD
+
+Esta sección explica cómo se configuran y despliegan los recursos de Kubernetes y cómo se integra el pipeline CI/CD para automatizar las actualizaciones del Deployment.
+
+## Recursos en Kubernetes
+
+El despliegue del proyecto se compone de distintos recursos que se crean mediante Kubernetes:
+
+- **Namespace:**  
+  Define el ámbito donde se crearán y administrarán los recursos. Por ejemplo, se utiliza el namespace `grupo00` para todos los objetos del proyecto.
+
+- **Deployment (Telegram Bot):**  
+  El Deployment gestiona la actualización y el escalado del bot de Telegram. Actualiza la imagen del contenedor y se encarga de reiniciar los Pods en caso de fallos.  
+  *Ejemplo de actualización usando `kubectl set image`:*  
+  ```bash
+  kubectl set image deployment/telegram-bot telegram-bot=$IMAGE -n grupo00 --record
+  ```
+  - **Parámetros:**
+    - `deployment/telegram-bot`: Especifica el recurso de tipo Deployment llamado `telegram-bot`.
+    - `telegram-bot=$IMAGE`: Indica que el contenedor llamado `telegram-bot` se actualizará con la imagen definida por la variable `$IMAGE`.
+    - `-n grupo00`: Aplica la acción en el namespace `grupo00`.
+    - `--record`: Registra el comando en la anotación del Deployment, facilitando el seguimiento de los cambios.
+
+- **ConfigMap y Secret:**  
+  Los ConfigMap guardan variables de configuración (por ejemplo, credenciales o parámetros no sensibles) y los Secret almacenan información sensible (como tokens o contraseñas).  
+  - Se utilizan para inyectar variables en el Deployment sin incluirlas directamente en la imagen del contenedor.
+  - Ejemplo de creación de un Secret para credenciales de acceso a un registry:
+    ```bash
+    kubectl create secret docker-registry my-registry-secret \
+      --docker-server=registry.gitlab.com \
+      --docker-username=<USER> \
+      --docker-password=<TOKEN>
+    ```
+
+- **Helm Chart para Postgres:**  
+  Se emplea un Helm Chart para desplegar y configurar una base de datos PostgreSQL. Esto incluye la creación de:
+  - StatefulSet
+  - Servicios (Service, Headless Service y Metrics Service)
+  - Los ConfigMap y Secret necesarios para la inicialización y configuración de Postgres.
+
+## CI/CD y Despliegue con AWS CLI y kubectl
+
+El pipeline de GitLab CI/CD está configurado para realizar distintas etapas, desde la ejecución de pruebas hasta el despliegue final. Algunos aspectos claves son:
+
+- **Jobs y Etapas:**  
+  El pipeline se divide en varias etapas:  
+  - **Testing:** Ejecuta las pruebas unitarias y genera reportes de cobertura.
+  - **Quality:** Realiza el análisis de calidad del código utilizando SonarCloud.
+  - **Build:** Construye y envía la imagen Docker a un registry.
+  - **Scanning:** Escanea la imagen en busca de vulnerabilidades mediante Trivy.
+  - **Summary:** Genera un resumen en GitLab Pages con los resultados de las pruebas y escaneos.
+  - **Deploy:** Actualiza el Deployment de Kubernetes con la nueva imagen.
+
+- **Configuración del Job Deploy:**  
+  Se utiliza una imagen base (Alpine en este caso) para instalar herramientas como `aws-cli`, `curl` y `kubectl`, aunque es posible cambiarla a una imagen basada en Ubuntu o Debian si se prefiere.  
+  La configuración se resume en los siguientes pasos en el `before_script` del job:
+  1. **Instalación de herramientas:**  
+     Usando `apk add` para instalar `curl`, `bash`, `ca-certificates` y `aws-cli`.
+  2. **Instalación de kubectl:**  
+     Se descarga el binario oficial de `kubectl` con `curl` y se coloca en `/usr/local/bin`.
+  3. **Verificación de instalaciones:**  
+     Se ejecuta `aws --version` y `kubectl version --client` para confirmar que las herramientas están disponibles.
+  4. **Configuración de credenciales AWS:**  
+     Se configuran las credenciales y se genera el kubeconfig para el cluster EKS usando AWS CLI.
+  5. **Actualización del Deployment:**  
+     Con `kubectl set image` se actualiza el contenedor del Deployment `telegram-bot` en el namespace `grupo00`.
+
+- **Uso del Flag `--record`:**  
+  Cuando se actualiza el Deployment, el flag `--record` registra el comando de actualización en la anotación del Deployment, lo que facilita el seguimiento del historial de cambios y auditorías.
+
+## Resumen
+
+Esta configuración de recursos en Kubernetes y el pipeline CI/CD permiten:
+- Automatizar la ejecución y pruebas del proyecto.
+- Generar y visualizar reportes de cobertura y seguridad.
+- Desplegar actualizaciones de forma rápida mediante la actualización de la imagen del Deployment.
+- Gestionar la configuración de la base de datos a través de un Helm Chart.
+
+
+---
+
 
 ## Referencias
 
