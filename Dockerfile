@@ -23,7 +23,6 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY ./requirements.txt requirements.txt
 RUN pip3 install -r requirements.txt
 COPY . .
-COPY ./bot/telegram_bot.py /app/telegram_bot.py
-COPY ./main.py /app/main.py
+
 CMD ["python3", "main.py"]
 
