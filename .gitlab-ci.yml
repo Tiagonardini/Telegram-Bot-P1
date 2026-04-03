@@ -102,7 +102,8 @@ pages:
   image: alpine
   script:
     - mkdir -p public
-    - echo "<html><body><h1>Reporte de Pipeline - Grupo Tiago, Ivan y Mar</h1><p>Estado: Exitoso</p></body></html>" > public/index.html
+    # Usamos comillas simples afuera para proteger los dos puntos y las etiquetas HTML
+    - 'echo "<html><body><h1>Reporte de Pipeline - Grupo Tiago, Ivan y Mar</h1><p>Estado: Exitoso</p></body></html>" > public/index.html'
   dependencies:
     - testing
     - scanning
