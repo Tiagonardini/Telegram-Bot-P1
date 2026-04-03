@@ -1,9 +1,11 @@
 variables:
   DOCKER_TLS_CERTDIR: "/certs"
+  # Definición de la imagen usando el registro de GitLab
   IMAGE: ${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME}:${CI_COMMIT_SHORT_SHA}
+  SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
 
 before_script:
-  - echo $CI_JOB_STAGE
+  - echo "Iniciando etapa $CI_JOB_STAGE"
 
 stages:
   - testing
@@ -13,55 +15,71 @@ stages:
   - summary
   - deploy
 
+# 1. ETAPA DE TESTING: Pytest + Coverage
 testing:
-  image: alpine
+  image: python:3.10
   stage: testing
   script:
-    - echo $CI_JOB_STAGE
+    - pip install -r requirements.txt
+    - pip install pytest pytest-cov
+    # Ejecuta tests y genera reportes XML para GitLab y Sonar
+    - pytest --junitxml=report.xml --cov=. --cov-report=xml:coverage.xml
   artifacts:
+    when: always
     paths:
       - coverage.xml
       - report.xml
+    reports:
+      junit: report.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
   only:
     - main
     - practica-01
 
+# 2. ETAPA DE CALIDAD: SonarCloud
 sonarqube:
-  image: alpine
+  image: 
+    name: sonarsource/sonar-scanner-cli:latest
+    entrypoint: [""]
   stage: quality
-  variables:
-    SONAR_PROJECT_BASE_DIR: "./"
+  cache:
+    key: "${CI_JOB_NAME}"
+    paths:
+      - .sonar/cache
   script:
-    - echo "Ejecutando sonarqube"
+    - sonar-scanner -Dsonar.projectKey=$SONAR_PROJECT_KEY -Dsonar.sources=. -Dsonar.host.url=https://sonarcloud.io
   dependencies:
     - testing
   only:
     - main
     - practica-01
 
+# 3. ETAPA DE BUILD: Construcción y Push de Docker
 docker-build:
   image:
-      name: docker:28.0.2
-  # services Dind es necesario para ejecutar Docker
+    name: docker:28.0.2
   services:
     - docker:28.0.2-dind
   stage: build
   script:
-   - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-   - echo $IMAGE
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build -t $IMAGE .
+    - docker push $IMAGE
   only:
     - main
     - practica-01
 
+# 4. ETAPA DE SCANNING: Seguridad con Trivy
 scanning:
   stage: scanning
+  image: 
+    name: aquasec/trivy:latest
+    entrypoint: [""]
   variables:
-    # TRIVY necesita User y Pass para poder acceder a la Imagen
     TRIVY_USERNAME: ${CI_REGISTRY_USER}
     TRIVY_PASSWORD: ${CI_REGISTRY_PASSWORD}
-  image:
-    name: alpine
-    entrypoint: [ "" ]
   dependencies:
     - docker-build
   cache:
@@ -69,23 +87,22 @@ scanning:
     paths:
       - .cache
   script:
-    - echo $CI_JOB_STAGE
+    # Escaneo de vulnerabilidades críticas y altas
+    - trivy image --exit-code 0 --severity HIGH,CRITICAL $IMAGE
   artifacts:
     paths:
-      - scanning-report.json # gitlab-codequality
-      - gl-dependency-scanning-report.json # spdx-json
+      - scanning-report.json
   only:
     - main
     - practica-01
 
-
+# 5. ETAPA DE SUMMARY: GitLab Pages
 pages:
   stage: summary
   image: alpine
   script:
-    - echo $CI_JOB_STAGE
     - mkdir -p public
-    - echo "<html><body><h1>Hola Mundo</h1></body></html>" > public/index.html
+    - echo "<html><body><h1>Reporte de Pipeline - Grupo Tiago, Ivan y Mar</h1><p>Estado: Exitoso</p></body></html>" > public/index.html
   dependencies:
     - testing
     - scanning
@@ -96,42 +113,27 @@ pages:
     - main
     - practica-01
 
-
+# 6. ETAPA DE DEPLOY: Amazon EKS (Kubernetes)
 deploy:
   stage: deploy
   image: 
-    # Usar una imagen de Alpine para el job de deploy
     name: alpine:3.21.3
     entrypoint: [""]
   before_script:
-    # Kubectl y AWS CLI
     - apk add --no-cache curl bash ca-certificates aws-cli
     - export KUBECTL_VERSION=v1.29.3
     - curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
-    - curl -LO "https://dl.k8s.io/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256"
-    - echo "$(cat kubectl.sha256)  kubectl" | sha256sum -c -
     - install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-    # Verificar instalación de kubectl y aws-cli
-    - aws --version
-    - kubectl version --client
-    # Configurar credenciales de AWS
+    # Configuración de credenciales de AWS
     - aws configure set aws_access_key_id ${AWS_ACCESS_KEY_ID}
     - aws configure set aws_secret_access_key ${AWS_SECRET_ACCESS_KEY}
     - aws configure set aws_session_token ${AWS_SESSION_TOKEN}
     - aws configure set region ${AWS_DEFAULT_REGION}
-    # Verificar que las credenciales estén configuradas
-    - aws sts get-caller-identity
-    # Configurar kubectl para EKS
     - aws eks update-kubeconfig --name eks-2025-1 --region ${AWS_DEFAULT_REGION}
   script:
-    - aws --version
-    - kubectl version --client
-    # Actualizar el deployment de Kubernetes con la nueva imagen
-    # deployment: telegram-bot
-    # container: telegram-bot
-    # namespace: grupo00
-    # image: registry.gitlab.com/public-unrn/telegram-bot-ia-talk-database:c1ba4126
-    #- kubectl set image 
+    # Comando final para actualizar el bot en el cluster
+    # IMPORTANTE: Reemplaza 'grupoXX' por el nombre de tu namespace asignado
+    - kubectl set image deployment/telegram-bot telegram-bot=$IMAGE -n Bot_de_telegram
   dependencies:
     - pages
   only:
