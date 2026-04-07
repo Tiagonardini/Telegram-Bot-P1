@@ -27,14 +27,28 @@ testing:
     - practica-01
 
 sonarqube:
-  image: alpine
   stage: quality
+  image: 
+    name: sonarsource/sonar-scanner-cli:latest
+    entrypoint: [""]
   variables:
-    SONAR_PROJECT_BASE_DIR: "./"
-  script:
-    - echo "Ejecutando sonarqube"
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
+    GIT_DEPTH: "0"
   dependencies:
-    - testing
+    - testing # Necesario para recibir el coverage.xml
+  script:
+    # Ejecutamos el comando exacto de tu guía
+    # Redirigimos la salida a sonar.log usando '2>&1 | tee sonar.log'
+    - /usr/bin/entrypoint.sh sonar-scanner \
+        -Dsonar.login="$SONAR_LOGIN" \
+        -Dsonar.organization="$SONAR_ORGANIZATION" \
+        -Dsonar.host.url="$SONAR_URL" \
+        -Dsonar.projectKey="$SONAR_PROYECT_KEY" \
+        -Dsonar.python.coverage.reportPaths=coverage.xml 2>&1 | tee sonar.log
+  artifacts:
+    paths:
+      - sonar.log # Requisito: captura la salida para revisión
+    expire_in: 1 week
   only:
     - main
     - practica-01
