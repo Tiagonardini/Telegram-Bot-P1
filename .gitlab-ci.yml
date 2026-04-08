@@ -1,6 +1,6 @@
 variables:
   DOCKER_TLS_CERTDIR: "/certs"
-  IMAGE: ${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME}:${CI_COMMIT_SHORT_SHA}
+  IMAGE: ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}
 
 before_script:
   - echo $CI_JOB_STAGE
@@ -14,9 +14,16 @@ stages:
   - deploy
 
 testing:
-  image: alpine
+  image: python:3.11-slim
   stage: testing
+  before_script:
+    # Instalamos las librerías de tu bot y las herramientas de testing
+    - pip install -r requirements.txt
+    - pip install pytest pytest-cov
   script:
+    - echo "Ejecutando pruebas unitarias..."
+    # Este es el comando mágico que genera los reportes
+    - pytest --junitxml=report.xml --cov=. --cov-report=xml:coverage.xml
     - echo $CI_JOB_STAGE
   artifacts:
     paths:
@@ -26,25 +33,22 @@ testing:
     - main
     - practica-01
 
-sonarqube:
-  stage: quality
+sonarqube: # Sin espacios al inicio
+  stage: quality # 2 espacios de sangría
+  variables:
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"  # Defines the location of the analysis task cache
+    GIT_DEPTH: "0"  # Tells git to fetch all the branches of the project, required by the analysis task
   image: 
     name: sonarsource/sonar-scanner-cli:latest
     entrypoint: [""]
-  variables:
-    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
-    GIT_DEPTH: "0"
-  dependencies:
-    - testing # Necesario para recibir el coverage.xml
   script:
-    # Ejecutamos el comando exacto de tu guía
-    # Redirigimos la salida a sonar.log usando '2>&1 | tee sonar.log'
-    - /usr/bin/entrypoint.sh sonar-scanner \
-        -Dsonar.login="$SONAR_LOGIN" \
-        -Dsonar.organization="$SONAR_ORGANIZATION" \
-        -Dsonar.host.url="$SONAR_URL" \
-        -Dsonar.projectKey="$SONAR_PROYECT_KEY" \
-        -Dsonar.python.coverage.reportPaths=coverage.xml 2>&1 | tee sonar.log
+    - | # El guion y el pipe están alineados con 'stage'
+      /usr/bin/entrypoint.sh sonar-scanner \
+      -Dsonar.login="${SONAR_LOGIN}" \
+      -Dsonar.organization="${SONAR_ORGANIZATION}" \
+      -Dsonar.host.url="${SONAR_URL}" \
+      -Dsonar.projectKey="${SONAR_PROYECT_KEY}" \
+      -Dsonar.python.coverage.reportPaths=coverage.xml 2>&1 | tee sonar.log
   artifacts:
     paths:
       - sonar.log # Requisito: captura la salida para revisión
@@ -62,6 +66,10 @@ docker-build:
   stage: build
   script:
    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+   - echo "Construyendo la imagen $IMAGE"
+   - docker build -t $IMAGE .
+   - echo "Subiendo la imagen al registro de GitLab..."
+   - docker push $IMAGE
    - echo $IMAGE
   only:
     - main
@@ -69,25 +77,24 @@ docker-build:
 
 scanning:
   stage: scanning
+  image:
+    name: ghcr.io/aquasecurity/trivy:latest
+    entrypoint: [ "" ]
   variables:
-    # TRIVY necesita User y Pass para poder acceder a la Imagen
     TRIVY_USERNAME: ${CI_REGISTRY_USER}
     TRIVY_PASSWORD: ${CI_REGISTRY_PASSWORD}
-  image:
-    name: alpine
-    entrypoint: [ "" ]
-  dependencies:
-    - docker-build
-  cache:
-    key: trivy-cache
-    paths:
-      - .cache
+    TRIVY_AUTH_URL: ${CI_REGISTRY}
   script:
-    - echo $CI_JOB_STAGE
+    - echo "Generando reporte visual de seguridad..."
+    # 1. Este comando crea el reporte HTML "bonito"
+    - trivy image --format template --template "@/contrib/html.tpl" --output reporte-seguridad.html ${IMAGE}
+    # 2. Mantenemos este para que sigas viendo la tabla rápida en la consola
+    - trivy image --severity HIGH,CRITICAL ${IMAGE}
   artifacts:
+    when: always
     paths:
-      - scanning-report.json # gitlab-codequality
-      - gl-dependency-scanning-report.json # spdx-json
+      - reporte-seguridad.html
+    expire_in: 1 week
   only:
     - main
     - practica-01
@@ -117,29 +124,31 @@ deploy:
     # Usar una imagen de Alpine para el job de deploy
     name: alpine:3.21.3
     entrypoint: [""]
-  before_script:
+  #before_script:
     # Kubectl y AWS CLI
-    - apk add --no-cache curl bash ca-certificates aws-cli
-    - export KUBECTL_VERSION=v1.29.3
-    - curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
-    - curl -LO "https://dl.k8s.io/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256"
-    - echo "$(cat kubectl.sha256)  kubectl" | sha256sum -c -
-    - install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+    #- apk add --no-cache curl bash ca-certificates aws-cli
+    #- export KUBECTL_VERSION=v1.29.3
+    #- curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+    #- curl -LO "https://dl.k8s.io/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256"
+    #- echo "$(cat kubectl.sha256)  kubectl" | sha256sum -c -
+    #- install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
     # Verificar instalación de kubectl y aws-cli
-    - aws --version
-    - kubectl version --client
+    #- aws --version
+    #- kubectl version --client
     # Configurar credenciales de AWS
-    - aws configure set aws_access_key_id ${AWS_ACCESS_KEY_ID}
-    - aws configure set aws_secret_access_key ${AWS_SECRET_ACCESS_KEY}
-    - aws configure set aws_session_token ${AWS_SESSION_TOKEN}
-    - aws configure set region ${AWS_DEFAULT_REGION}
+    #- aws configure set aws_access_key_id ${AWS_ACCESS_KEY_ID}
+    #- aws configure set aws_secret_access_key ${AWS_SECRET_ACCESS_KEY}
+    #- aws configure set aws_session_token ${AWS_SESSION_TOKEN}
+    #- aws configure set region ${AWS_DEFAULT_REGION}
     # Verificar que las credenciales estén configuradas
-    - aws sts get-caller-identity
+    #- aws sts get-caller-identity
     # Configurar kubectl para EKS
-    - aws eks update-kubeconfig --name eks-2025-1 --region ${AWS_DEFAULT_REGION}
+    #- aws eks update-kubeconfig --name eks-2025-1 --region ${AWS_DEFAULT_REGION}
   script:
-    - aws --version
-    - kubectl version --client
+    - echo "Fase de despliegue simulada para la practica-01."
+    - echo "En el futuro, aquí nos conectaremos a AWS EKS."
+    #- aws --version
+    #- kubectl version --client
     # Actualizar el deployment de Kubernetes con la nueva imagen
     # deployment: telegram-bot
     # container: telegram-bot
